@@ -1,0 +1,562 @@
+<!--
+    Calendar / notifications / quick-settings card that rises out of the dock. Created when
+    opened, closed (and freed) when it goes away. Fixed size; the card slides + fades inside it.
+-->
+<Window x:Class="NotchApp.DockPopup"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:NotchApp"
+        Title="Lagoon Popup" Width="380" Height="606"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize" ShowActivated="False"
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource FgBrush}"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <Style x:Key="DayCell" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="FontSize" Value="13.5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Width="34" Height="34" CornerRadius="17" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Control Center tile: a rounded module -->
+        <SolidColorBrush x:Key="ModuleEdge" Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="ModuleCut" Color="#2A2A2E"/>
+        <Style x:Key="Module" TargetType="Border">
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Background" Value="{DynamicResource Card}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ModuleEdge}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <!-- round toggle: grey when off, blue when on -->
+        <Style x:Key="CCToggle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="48"/>
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource ChipOff}"/>
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="28" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Opacity" Value="0.85"/></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.35"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True"><Setter Property="Background" Value="#0A84FF"/></Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CCToggleWhite" TargetType="ToggleButton" BasedOn="{StaticResource CCToggle}">
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="White"/>
+                    <Setter Property="Foreground" Value="#1C1C1E"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CCToggleRed" TargetType="ToggleButton" BasedOn="{StaticResource CCToggle}">
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True"><Setter Property="Background" Value="#FF453A"/></Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- round action button (snip, calculator...) -->
+        <Style x:Key="CCButton" TargetType="Button">
+            <Setter Property="Width" Value="52"/>
+            <Setter Property="Height" Value="52"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="28" Background="{DynamicResource Card}" BorderBrush="{DynamicResource ModuleEdge}" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardHover}"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- small icon button used in the media module -->
+        <Style x:Key="MiniTransport" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent" Width="30" Height="30">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- macOS-style row: icon circle + title + status; the whole row is the toggle -->
+        <Style x:Key="CCRow" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="12" Background="Transparent" Padding="6,5">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}"/></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- the circle inside a row: grey, blue when its row is on -->
+        <Style x:Key="RowDotBlue" TargetType="Border">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Background" Value="{DynamicResource ChipOff}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                    <Setter Property="Background" Value="#0A84FF"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="RowDotPurple" TargetType="Border" BasedOn="{StaticResource RowDotBlue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                    <Setter Property="Background" Value="#BF5AF2"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="RowDotGreen" TargetType="Border" BasedOn="{StaticResource RowDotBlue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                    <Setter Property="Background" Value="#30D158"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="RowDotRed" TargetType="Border" BasedOn="{StaticResource RowDotBlue}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                    <Setter Property="Background" Value="#FF453A"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- small square tile (rotation lock): white when on -->
+        <Style x:Key="CCSquare" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource Card}"/>
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="18" Background="{TemplateBinding Background}"
+                                BorderBrush="{DynamicResource ModuleEdge}" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Opacity" Value="0.85"/></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="White"/>
+                    <Setter Property="Foreground" Value="#1C1C1E"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CCSquareButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="{StaticResource IconFont}"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="18" Background="{DynamicResource Card}"
+                                BorderBrush="{DynamicResource ModuleEdge}" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardHover}"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border x:Name="Card" VerticalAlignment="Bottom" CornerRadius="34" Padding="16" RenderTransformOrigin="0.5,1"
+            Background="Black" BorderThickness="1" BorderBrush="#26FFFFFF" Opacity="0">
+        <Border.RenderTransform>
+            <TransformGroup><ScaleTransform x:Name="CardScale" ScaleX="0.95" ScaleY="0.95"/><TranslateTransform x:Name="CardShift" Y="18"/></TransformGroup>
+        </Border.RenderTransform>
+        <Grid>
+            <!-- ===== Calendar ===== -->
+            <StackPanel x:Name="CalendarView">
+                <TextBlock x:Name="BigTime" FontSize="40" FontWeight="SemiBold" FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                <TextBlock x:Name="LongDate" FontSize="14" Foreground="{DynamicResource Subtle}" Margin="1,-2,0,0"/>
+                <Grid Margin="0,18,0,8">
+                    <TextBlock x:Name="MonthTitle" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button x:Name="PrevMonth" Style="{StaticResource IconButton}" Content="&#xE76B;" Width="30" Height="30" FontSize="12"/>
+                        <Button x:Name="NextMonth" Style="{StaticResource IconButton}" Content="&#xE76C;" Width="30" Height="30" FontSize="12"/>
+                    </StackPanel>
+                </Grid>
+                <UniformGrid x:Name="WeekDays" Columns="7" Margin="0,0,0,4"/>
+                <UniformGrid x:Name="Days" Columns="7"/>
+            </StackPanel>
+
+            <!-- ===== Notifications ===== -->
+            <Grid x:Name="NotesView" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="Notifications" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Button x:Name="ClearAll" Style="{StaticResource IconButton}" FontFamily="{StaticResource UiFont}" Content="Clear all"
+                        Width="72" Height="28" FontSize="13" Foreground="{DynamicResource Subtle}" HorizontalAlignment="Right"/>
+                <ScrollViewer Grid.Row="1" Margin="0,12,0,0" VerticalScrollBarVisibility="Hidden" MaxHeight="440">
+                    <StackPanel x:Name="NotesList"/>
+                </ScrollViewer>
+                <TextBlock x:Name="NotesEmpty" Grid.Row="1" Text="You're all caught up." FontSize="14" Foreground="{DynamicResource Subtle}"
+                           HorizontalAlignment="Center" Margin="0,40,0,40" Visibility="Collapsed"/>
+            </Grid>
+
+            <!-- ===== Background apps (the taskbar's "^" tray icons) ===== -->
+            <Grid x:Name="BgView" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="Background apps" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock x:Name="BgCount" FontSize="13" Foreground="{DynamicResource Subtle}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                <ScrollViewer Grid.Row="1" Margin="0,12,0,0" VerticalScrollBarVisibility="Hidden" MaxHeight="440">
+                    <StackPanel x:Name="BgList"/>
+                </ScrollViewer>
+                <TextBlock x:Name="BgEmpty" Grid.Row="1" Text="Nothing running in the background." FontSize="14" Foreground="{DynamicResource Subtle}"
+                           HorizontalAlignment="Center" Margin="0,40,0,40" Visibility="Collapsed"/>
+            </Grid>
+
+            <!-- ===== Quick settings: Control Center style ===== -->
+            <Grid x:Name="ControlsView" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/><ColumnDefinition Width="10"/><ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="32"/><RowDefinition Height="10"/>
+                    <RowDefinition Height="170"/><RowDefinition Height="10"/>
+                    <RowDefinition Height="60"/><RowDefinition Height="10"/>
+                    <RowDefinition Height="70"/><RowDefinition Height="10"/>
+                    <RowDefinition Height="70"/><RowDefinition Height="10"/>
+                    <RowDefinition Height="56"/><RowDefinition Height="12"/>
+                    <RowDefinition Height="44"/>
+                </Grid.RowDefinitions>
+
+                <!-- header: System Settings -->
+                <Button x:Name="QAllSettings" Grid.ColumnSpan="3" HorizontalAlignment="Center" Cursor="Hand" Focusable="False"
+                        Foreground="{DynamicResource FgBrush}">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" CornerRadius="16" Background="{DynamicResource Card}" BorderBrush="{DynamicResource ModuleEdge}"
+                                    BorderThickness="1" Padding="12,0" Height="30">
+                                <ContentPresenter VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="{DynamicResource CardHover}"/></Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="18" Height="18" CornerRadius="9" Background="White">
+                            <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE713;" FontSize="10" Foreground="#1C1C1E"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="System Settings" FontSize="13" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- connectivity: Wi-Fi, Bluetooth, Microphone -->
+                <Border Grid.Row="2" Style="{StaticResource Module}" Padding="6">
+                    <UniformGrid Rows="3">
+                        <Grid>
+                            <ToggleButton x:Name="QWifi" Style="{StaticResource CCRow}" ToolTip="Click to turn on/off · › for networks">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Style="{StaticResource RowDotBlue}">
+                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE701;" FontSize="14" Foreground="White"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="Wi-Fi" FontSize="13" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="QWifiSub" FontSize="11.5" Foreground="{DynamicResource Subtle}" TextTrimming="CharacterEllipsis" MaxWidth="80"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ToggleButton>
+                            <Button x:Name="QWifiList" Style="{StaticResource IconButton}" Content="&#xE76C;" Width="24" Height="24" FontSize="10"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" ToolTip="Wi-Fi networks"/>
+                        </Grid>
+                        <Grid>
+                            <ToggleButton x:Name="QBluetooth" Style="{StaticResource CCRow}" ToolTip="Click to turn on/off · › for devices">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Style="{StaticResource RowDotBlue}">
+                                        <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE702;" FontSize="14" Foreground="White"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="Bluetooth" FontSize="13" FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="QBtSub" FontSize="11.5" Foreground="{DynamicResource Subtle}" TextTrimming="CharacterEllipsis" MaxWidth="80"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ToggleButton>
+                            <Button x:Name="QBtDevices" Style="{StaticResource IconButton}" Content="&#xE76C;" Width="24" Height="24" FontSize="10"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" ToolTip="Bluetooth devices"/>
+                        </Grid>
+                        <ToggleButton x:Name="QMic" Style="{StaticResource CCRow}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Style="{StaticResource RowDotRed}">
+                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE720;" FontSize="14" Foreground="White"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="Microphone" FontSize="13" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="QMicSub" FontSize="11.5" Foreground="{DynamicResource Subtle}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ToggleButton>
+                    </UniformGrid>
+                </Border>
+
+                <!-- now playing -->
+                <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource Module}" Padding="14,14,14,10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Border Width="56" Height="56" CornerRadius="12" HorizontalAlignment="Left" Background="{DynamicResource ChipOff}">
+                            <Grid>
+                                <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xEC4F;" FontSize="20" Foreground="{DynamicResource PlaceholderBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Border CornerRadius="12">
+                                    <Border.Background>
+                                        <ImageBrush x:Name="QArt" Stretch="UniformToFill"/>
+                                    </Border.Background>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="QTitle" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock x:Name="QArtist" FontSize="12" Foreground="{DynamicResource Subtle}" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="QPrev" Style="{StaticResource MiniTransport}">
+                                <Path Data="M8,0 L0,5.5 L8,11 Z M16,0 L8,5.5 L16,11 Z" Fill="White" Opacity="0.75"/>
+                            </Button>
+                            <Button x:Name="QPlay" Grid.Column="1" Style="{StaticResource MiniTransport}">
+                                <Grid>
+                                    <StackPanel x:Name="QPause" Orientation="Horizontal">
+                                        <Rectangle Width="5" Height="17" RadiusX="1.5" RadiusY="1.5" Fill="White"/>
+                                        <Rectangle Width="5" Height="17" RadiusX="1.5" RadiusY="1.5" Fill="White" Margin="4.5,0,0,0"/>
+                                    </StackPanel>
+                                    <Path x:Name="QPlayGlyph" Data="M0,0 L14,8.5 L0,17 Z" Fill="White" Visibility="Collapsed" Margin="2,0,0,0"/>
+                                </Grid>
+                            </Button>
+                            <Button x:Name="QNext" Grid.Column="2" Style="{StaticResource MiniTransport}">
+                                <Path Data="M0,0 L8,5.5 L0,11 Z M8,0 L16,5.5 L8,11 Z" Fill="White" Opacity="0.75"/>
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- rotation lock + snip | sound (mute) -->
+                <UniformGrid Grid.Row="4" Columns="2">
+                    <ToggleButton x:Name="QRotate" Style="{StaticResource CCSquare}" Content="&#xE7AD;" Margin="0,0,5,0" ToolTip="Rotation lock"/>
+                    <Button x:Name="QSnip" Style="{StaticResource CCSquareButton}" Content="&#xE8C6;" Margin="5,0,0,0" ToolTip="Snip the screen"/>
+                </UniformGrid>
+                <Border Grid.Row="4" Grid.Column="2" Style="{StaticResource Module}" Padding="4">
+                  <Grid>
+                    <Button x:Name="QSoundDevices" Style="{StaticResource IconButton}" Content="&#xE76C;" Width="24" Height="24" FontSize="10"
+                            HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0" Panel.ZIndex="1" ToolTip="Speakers and microphones"/>
+                    <ToggleButton x:Name="QMute" Style="{StaticResource CCRow}">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource RowDotRed}">
+                                <TextBlock x:Name="QMuteGlyph" FontFamily="{StaticResource IconFont}" Text="&#xE767;" FontSize="14" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Sound" FontSize="13" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="QMuteSub" FontSize="11.5" Foreground="{DynamicResource Subtle}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ToggleButton>
+                  </Grid>
+                </Border>
+
+                <!-- Display -->
+                <Border Grid.Row="6" Grid.ColumnSpan="3" Style="{StaticResource Module}" Padding="14,8,14,10">
+                    <StackPanel>
+                        <TextBlock Text="Display" FontSize="13" FontWeight="SemiBold" Margin="2,0,0,6"/>
+                        <local:CapsuleSlider x:Name="QBrightness" Height="24" ToolTip="Brightness"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Sound -->
+                <Border Grid.Row="8" Grid.ColumnSpan="3" Style="{StaticResource Module}" Padding="14,8,14,10">
+                    <StackPanel>
+                        <TextBlock Text="Sound" FontSize="13" FontWeight="SemiBold" Margin="2,0,0,6"/>
+                        <local:CapsuleSlider x:Name="QVolume" Height="24" ToolTip="Volume"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- do not disturb (notifications through the notch) | battery saver -->
+                <Border Grid.Row="10" Style="{StaticResource Module}" Padding="4">
+                    <ToggleButton x:Name="QDnd" Style="{StaticResource CCRow}">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource RowDotPurple}">
+                                <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE708;" FontSize="14" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Do not disturb" FontSize="13" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="QDndSub" FontSize="11.5" Foreground="{DynamicResource Subtle}" TextTrimming="CharacterEllipsis" MaxWidth="96"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ToggleButton>
+                </Border>
+                <Border Grid.Row="10" Grid.Column="2" Style="{StaticResource Module}" Padding="4">
+                    <ToggleButton x:Name="QSaver" Style="{StaticResource CCRow}" ToolTip="Battery saver">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource RowDotGreen}">
+                                <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xEBC0;" FontSize="14" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Battery saver" FontSize="13" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="QSaverSub" FontSize="11.5" Foreground="{DynamicResource Subtle}" TextTrimming="CharacterEllipsis" MaxWidth="96"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ToggleButton>
+                </Border>
+
+                <!-- shortcuts -->
+                <StackPanel Grid.Row="12" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button x:Name="QCalc" Style="{StaticResource CCButton}" Width="44" Height="44" FontSize="15" Margin="8,0" Content="&#xE8EF;" ToolTip="Calculator"/>
+                    <Button x:Name="QCamera" Style="{StaticResource CCButton}" Width="44" Height="44" FontSize="15" Margin="8,0" Content="&#xE722;" ToolTip="Camera"/>
+                    <Button x:Name="QFiles" Style="{StaticResource CCButton}" Width="44" Height="44" FontSize="15" Margin="8,0" Content="&#xE8B7;" ToolTip="File Explorer"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ===== Bluetooth devices ===== -->
+            <Grid x:Name="BluetoothView" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="BtBack" Style="{StaticResource IconButton}" Content="&#xE76B;" Width="32" Height="32" FontSize="13"/>
+                    <TextBlock Text="Bluetooth" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                </StackPanel>
+                <ToggleButton x:Name="BtPower" Style="{StaticResource CCToggle}" Content="&#xE702;" Width="38" Height="38" FontSize="15"
+                              HorizontalAlignment="Right" ToolTip="Bluetooth on/off"/>
+                <ScrollViewer Grid.Row="1" Margin="0,14,0,0" VerticalScrollBarVisibility="Hidden" MaxHeight="360">
+                    <StackPanel x:Name="BtList"/>
+                </ScrollViewer>
+                <TextBlock x:Name="BtEmpty" Grid.Row="1" TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
+                           Foreground="{DynamicResource Subtle}" Margin="10,40" Visibility="Collapsed"
+                           Text="No paired headphones or speakers. Pair one in Bluetooth settings first."/>
+                <Grid Grid.Row="2" Margin="0,12,0,0">
+                    <TextBlock Text="Headphones and speakers connect from here." FontSize="12" Foreground="{DynamicResource Subtle}"
+                               VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,130,0"/>
+                    <Button x:Name="BtSettings" Style="{StaticResource CardButton}" HorizontalAlignment="Right">
+                        <TextBlock Text="Bluetooth settings" FontSize="13"/>
+                    </Button>
+                </Grid>
+            </Grid>
+
+            <!-- ===== Wi-Fi networks ===== -->
+            <Grid x:Name="WifiView" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="WifiBack" Style="{StaticResource IconButton}" Content="&#xE76B;" Width="32" Height="32" FontSize="13"/>
+                    <TextBlock Text="Wi-Fi" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                </StackPanel>
+                <ToggleButton x:Name="WifiPower" Style="{StaticResource CCToggle}" Content="&#xE701;" Width="38" Height="38" FontSize="15"
+                              HorizontalAlignment="Right" ToolTip="Wi-Fi on/off"/>
+                <ScrollViewer Grid.Row="1" Margin="0,14,0,0" VerticalScrollBarVisibility="Hidden" MaxHeight="370">
+                    <StackPanel x:Name="WifiList"/>
+                </ScrollViewer>
+                <TextBlock x:Name="WifiEmpty" Grid.Row="1" TextWrapping="Wrap" TextAlignment="Center" FontSize="13"
+                           Foreground="{DynamicResource Subtle}" Margin="10,40" Visibility="Collapsed"/>
+                <Button x:Name="WifiSettings" Grid.Row="2" Margin="0,12,0,0" Style="{StaticResource CardButton}" HorizontalAlignment="Right">
+                    <TextBlock Text="Wi-Fi settings" FontSize="13"/>
+                </Button>
+            </Grid>
+
+            <!-- ===== Speakers & microphones ===== -->
+            <Grid x:Name="SoundView" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="SoundBack" Style="{StaticResource IconButton}" Content="&#xE76B;" Width="32" Height="32" FontSize="13"/>
+                    <TextBlock Text="Sound" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                </StackPanel>
+                <ScrollViewer x:Name="SoundScroll" Grid.Row="1" Margin="0,12,0,0" VerticalScrollBarVisibility="Hidden" MaxHeight="390">
+                    <StackPanel>
+                        <TextBlock Text="OUTPUT" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Subtle}" Margin="4,0,0,6"/>
+                        <StackPanel x:Name="OutputList"/>
+                        <TextBlock Text="MICROPHONE" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Subtle}" Margin="4,12,0,6"/>
+                        <StackPanel x:Name="InputList"/>
+                    </StackPanel>
+                </ScrollViewer>
+                <Button x:Name="SoundSettings" Grid.Row="2" Margin="0,12,0,0" Style="{StaticResource CardButton}" HorizontalAlignment="Right">
+                    <TextBlock Text="Sound settings" FontSize="13"/>
+                </Button>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

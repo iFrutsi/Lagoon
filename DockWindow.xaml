@@ -1,0 +1,148 @@
+<!--
+    Floating dock along the bottom: Start, pinned + open apps, now playing, focus timer,
+    quick settings, clock, notifications. A fixed-size strip window (never resized while
+    shown), transparent and click-through around the rounded bar.
+-->
+<Window x:Class="NotchApp.DockWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Lagoon Dock" Width="800" Height="66"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize" ShowActivated="False"
+        FontFamily="{StaticResource UiFont}" Foreground="{DynamicResource FgBrush}"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <Style x:Key="DockButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{DynamicResource FgBrush}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="MinWidth" Value="42"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="11" Background="Transparent" Padding="{TemplateBinding Padding}" RenderTransformOrigin="0.5,0.5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PressBrush}"/><Setter TargetName="Bd" Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="0.97" ScaleY="0.97"/></Setter.Value></Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Border x:Name="Bar" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,10"
+                Height="48" CornerRadius="18" Padding="14,0" Background="Black" BorderThickness="1" BorderBrush="#26FFFFFF">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="BarShift"/>
+            </Border.RenderTransform>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- Start -->
+                <Button x:Name="StartButton" Style="{StaticResource DockButton}" ToolTip="Start">
+                    <UniformGrid Rows="2" Columns="2" Width="17" Height="17">
+                        <Rectangle Fill="{DynamicResource FgBrush}" RadiusX="1.5" RadiusY="1.5" Margin="0,0,1.5,1.5"/>
+                        <Rectangle Fill="{DynamicResource FgBrush}" RadiusX="1.5" RadiusY="1.5" Margin="1.5,0,0,1.5"/>
+                        <Rectangle Fill="{DynamicResource FgBrush}" RadiusX="1.5" RadiusY="1.5" Margin="0,1.5,1.5,0"/>
+                        <Rectangle Fill="{DynamicResource FgBrush}" RadiusX="1.5" RadiusY="1.5" Margin="1.5,1.5,0,0"/>
+                    </UniformGrid>
+                </Button>
+
+                <!-- pinned + open apps (built in code). Many apps: the icons shrink to fit (FitApps),
+                     and past the smallest size the row scrolls sideways (wheel / swipe). -->
+                <ScrollViewer x:Name="AppsScroll" Margin="4,0,0,0" VerticalAlignment="Center" Focusable="False"
+                              HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" PanningMode="HorizontalOnly">
+                    <StackPanel x:Name="AppsPanel" Orientation="Horizontal">
+                        <StackPanel.LayoutTransform>
+                            <ScaleTransform x:Name="AppsScale" ScaleX="1" ScaleY="1"/>
+                        </StackPanel.LayoutTransform>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Rectangle Width="1" Height="22" Fill="{DynamicResource SliderRestBrush}" Margin="12,0"/>
+
+                <!-- now playing -->
+                <StackPanel x:Name="MediaPanel" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                    <Border Width="28" Height="28" CornerRadius="8" Background="{DynamicResource Card}">
+                        <Border CornerRadius="8">
+                            <Border.Background>
+                                <ImageBrush x:Name="MediaArtBrush" Stretch="UniformToFill"/>
+                            </Border.Background>
+                        </Border>
+                    </Border>
+                    <Button x:Name="MediaPlay" Style="{StaticResource DockButton}" MinWidth="34" Padding="6,0" ToolTip="Play / pause">
+                        <Grid>
+                            <StackPanel x:Name="DockPause" Orientation="Horizontal">
+                                <Rectangle Width="4" Height="15" RadiusX="1" RadiusY="1" Fill="{DynamicResource FgBrush}"/>
+                                <Rectangle Width="4" Height="15" RadiusX="1" RadiusY="1" Fill="{DynamicResource FgBrush}" Margin="3.5,0,0,0"/>
+                            </StackPanel>
+                            <Path x:Name="DockPlay" Data="M0,0 L12,7.5 L0,15 Z" Fill="{DynamicResource FgBrush}" Visibility="Collapsed"/>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+
+                <!-- focus timer -->
+                <StackPanel x:Name="TimerPanel" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0" Visibility="Collapsed">
+                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE916;" FontSize="16" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TimerText" FontSize="16" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center"
+                               FontFamily="Segoe UI Variable Display, Segoe UI"/>
+                </StackPanel>
+
+                <!-- background apps: the tray icons Windows shows under its taskbar's "^" -->
+                <Button x:Name="TrayButton" Style="{StaticResource DockButton}" ToolTip="Background apps" MinWidth="30" Padding="6,0">
+                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE70E;" FontSize="12"/>
+                </Button>
+
+                <!-- quick settings: Wi-Fi, sound -->
+                <Button x:Name="QuickButton" Style="{StaticResource DockButton}" ToolTip="Quick settings" Margin="2,0,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <!-- network: Wi-Fi bars over a faint full fan (like the taskbar), Ethernet, or no internet -->
+                        <Grid>
+                            <TextBlock x:Name="WifiBack" FontFamily="{StaticResource IconFont}" Text="&#xE701;" FontSize="16" Opacity="0.3"/>
+                            <TextBlock x:Name="NetGlyph" FontFamily="{StaticResource IconFont}" Text="&#xE701;" FontSize="16"/>
+                        </Grid>
+                        <TextBlock x:Name="VolumeGlyph" FontFamily="{StaticResource IconFont}" Text="&#xE767;" FontSize="16" Margin="12,0,0,0"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- clock -->
+                <Button x:Name="ClockButton" Style="{StaticResource DockButton}" ToolTip="Calendar and notifications">
+                    <StackPanel>
+                        <TextBlock x:Name="ClockTime" FontSize="13.5" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="ClockDate" FontSize="11" Foreground="{DynamicResource Subtle}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- notifications -->
+                <Button x:Name="BellButton" Style="{StaticResource DockButton}" ToolTip="Notifications">
+                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xEA8F;" FontSize="16"/>
+                </Button>
+
+                <!-- show desktop: the dock's far right edge, like the sliver at the end of Windows' taskbar.
+                     Tap: everything minimises; tap again: it all comes back. Hover 1.5 s: peek at the desktop. -->
+                <Button x:Name="DesktopButton" Style="{StaticResource DockButton}" ToolTip="Show desktop"
+                        MinWidth="0" Width="16" Padding="0" Margin="4,0,0,0">
+                    <Border Width="2" Height="26" CornerRadius="1" Background="{DynamicResource Subtle}" Opacity="0.7"/>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <!-- home handle: shown while the dock is tucked away; tap it to bring the dock up.
+             Sits at the very bottom and only the pill (plus a few px) reacts, so taps near the
+             bottom of an app don't open the dock by accident. -->
+        <Border x:Name="Handle" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                Width="150" Height="12" Background="#01000000" Visibility="Collapsed" Cursor="Hand">
+            <!-- colour set in code: white over dark screens, black over light ones (AdaptPill) -->
+            <Border x:Name="HandlePill" Width="128" Height="5" CornerRadius="2.5" VerticalAlignment="Bottom" Margin="0,0,0,3"
+                    BorderThickness="0.5"/>
+        </Border>
+    </Grid>
+</Window>

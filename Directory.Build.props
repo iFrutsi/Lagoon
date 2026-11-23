@@ -1,0 +1,12 @@
+<Project>
+  <!-- The project lives in OneDrive. Builds create and delete hundreds of throwaway files in bin/obj
+       (the shareable self-contained build alone adds ~225), which made OneDrive warn
+       "you deleted N files". Keep those working folders outside OneDrive instead.
+       (publish\, dist\ and releases\ stay here: a handful of files each.) -->
+  <PropertyGroup>
+    <BaseOutputPath>$(LOCALAPPDATA)\LagoonBuild\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(LOCALAPPDATA)\LagoonBuild\obj\</BaseIntermediateOutputPath>
+    <!-- never compile a stray bin/obj (or the shareable/release copies) left in the project folder -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;publish\**;dist\**;releases\**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

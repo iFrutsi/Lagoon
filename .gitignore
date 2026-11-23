@@ -1,0 +1,12 @@
+bin/
+obj/
+.vs/
+*.user
+publish/
+*.log
+releases/
+dist/
+
+# local working notes (not part of the public project)
+HANDOFF.md
+NEXT.md
